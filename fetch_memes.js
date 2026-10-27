@@ -4,7 +4,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables!");
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY!");
   process.exit(1);
 }
 
@@ -20,51 +20,48 @@ async function fetchRedditMemes() {
   let totalSaved = 0;
 
   for (const sub of TARGET_SUBREDDITS) {
-    console.log(`\n--- Fetching r/${sub.name} ---`);
+    console.log(`Fetching r/${sub.name}...`);
     
     try {
-      const res = await fetch(`https://www.reddit.com/r/${sub.name}/hot.json?limit=30`, {
-        headers: {
-          'User-Agent': 'script:sports-meme-aggregator:v1.0 (by /u/SportsMemeApp)'
-        }
+      const res = await fetch(`https://www.reddit.com/r/${sub.name}/hot.json?limit=25`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SportsMemeBot/1.0' }
       });
 
       if (!res.ok) {
-        console.error(`Reddit HTTP Error (${sub.name}): ${res.status} ${res.statusText}`);
+        console.error(`Failed to fetch r/${sub.name}: ${res.status}`);
         continue;
       }
 
       const data = await res.json();
       const posts = data?.data?.children || [];
-      console.log(`Retrieved ${posts.length} raw posts from r/${sub.name}`);
 
       for (const item of posts) {
         const post = item.data;
-
-        // Extract media URL
         let mediaUrl = post.url;
-        if (!mediaUrl) continue;
 
-        // Resolve imgur / reddit direct images
-        if (mediaUrl.includes('imgur.com') && !mediaUrl.endsWith('.jpg') && !mediaUrl.endsWith('.png') && !mediaUrl.endsWith('.gif')) {
+        // Skip text-only self posts or empty urls
+        if (!mediaUrl || post.is_self) continue;
+
+        // Format check: accept anything that looks like an image, gif, or video link
+        let mediaType = 'image';
+        if (mediaUrl.endsWith('.gif') || mediaUrl.includes('gifv')) {
+          mediaType = 'gif';
+        } else if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || mediaUrl.includes('v.redd.it') || mediaUrl.endsWith('.mp4')) {
+          mediaType = 'video';
+        }
+
+        // Clean up Imgur links missing extensions
+        if (mediaUrl.includes('imgur.com') && !mediaUrl.match(/\.(jpg|png|gif)$/i)) {
           mediaUrl += '.jpg';
         }
 
-        // Check if it's an image or gif
-        const isImage = mediaUrl.match(/\.(jpeg|jpg|png)$/i) || post.post_hint === 'image';
-        const isGif = mediaUrl.match(/\.gif$/i) || mediaUrl.includes('gfycat.com');
-
-        if (!isImage && !isGif) continue;
-
-        const mediaType = isGif ? 'gif' : 'image';
-
-        // Upsert into Supabase
-        const { data: insertedData, error } = await supabase.from('posts').upsert(
+        // Insert into Supabase
+        const { error } = await supabase.from('posts').upsert(
           {
-            title: post.title,
+            title: post.title || 'Untitled Meme',
             media_url: mediaUrl,
-            type: mediaType,      // Matches 'media_type' ENUM ('image', 'gif', 'video')
-            sport: sub.sport,    // Matches 'sport_type' ENUM ('soccer', 'basketball')
+            type: mediaType,
+            sport: sub.sport,
             source: 'Reddit',
             created_at: new Date(post.created_utc * 1000).toISOString()
           },
@@ -72,17 +69,17 @@ async function fetchRedditMemes() {
         );
 
         if (error) {
-          console.error(`Supabase Insert Error ("${post.title.substring(0, 30)}..."):`, error.message);
+          console.error('Supabase error:', error.message);
         } else {
           totalSaved++;
         }
       }
     } catch (err) {
-      console.error(`Error processing r/${sub.name}:`, err.message);
+      console.error(`Error in r/${sub.name}:`, err.message);
     }
   }
 
-  console.log(`\nDone! Successfully saved/processed ${totalSaved} items in Supabase.`);
+  console.log(`Total items successfully saved: ${totalSaved}`);
 }
 
 fetchRedditMemes();
