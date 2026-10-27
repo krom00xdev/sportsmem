@@ -15,37 +15,51 @@ async function fetchRedditMemes() {
   for (const sub of TARGET_SUBREDDITS) {
     console.log(`Fetching memes from r/${sub.name}...`);
     
-    const res = await fetch(`https://www.reddit.com/r/${sub.name}/hot.json?limit=25`);
-    const data = await res.json();
-    const posts = data?.data?.children || [];
-
-    for (const item of posts) {
-      const post = item.data;
+    try {
+      const res = await fetch(`https://www.reddit.com/r/${sub.name}/hot.json?limit=25`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
       
-      const isMedia = post.url && (
-        post.url.endsWith('.jpg') || 
-        post.url.endsWith('.png') || 
-        post.url.endsWith('.gif') || 
-        post.post_hint === 'image'
-      );
+      if (!res.ok) {
+        console.error(`Failed to fetch r/${sub.name}: ${res.statusText}`);
+        continue;
+      }
 
-      if (!isMedia) continue;
+      const data = await res.json();
+      const posts = data?.data?.children || [];
 
-      const mediaType = post.url.endsWith('.gif') ? 'gif' : 'image';
+      for (const item of posts) {
+        const post = item.data;
+        
+        const isMedia = post.url && (
+          post.url.endsWith('.jpg') || 
+          post.url.endsWith('.png') || 
+          post.url.endsWith('.gif') || 
+          post.post_hint === 'image'
+        );
 
-      const { error } = await supabase.from('posts').upsert(
-        {
-          title: post.title,
-          media_url: post.url,
-          type: mediaType,
-          sport: sub.sport,
-          source: 'Reddit',
-          created_at: new Date(post.created_utc * 1000).toISOString()
-        },
-        { onConflict: 'media_url', ignoreDuplicates: true }
-      );
+        if (!isMedia) continue;
 
-      if (error) console.error('Error saving post:', error.message);
+        const mediaType = post.url.endsWith('.gif') ? 'gif' : 'image';
+
+        const { error } = await supabase.from('posts').upsert(
+          {
+            title: post.title,
+            media_url: post.url,
+            type: mediaType,
+            sport: sub.sport,
+            source: 'Reddit',
+            created_at: new Date(post.created_utc * 1000).toISOString()
+          },
+          { onConflict: 'media_url', ignoreDuplicates: true }
+        );
+
+        if (error) console.error('Error saving post:', error.message);
+      }
+    } catch (err) {
+      console.error(`Error processing r/${sub.name}:`, err.message);
     }
   }
   console.log('Automated ingestion complete!');
