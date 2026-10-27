@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sports Memes Hub</title>
+  <!-- Tailwind CSS CDN for instant styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen">
+  
+  <!-- Header -->
+  <header class="border-b border-zinc-800 p-4 sticky top-0 bg-zinc-950/80 backdrop-blur z-10">
+    <div class="max-w-6xl mx-auto flex justify-between items-center">
+      <h1 class="text-xl font-bold tracking-wider text-emerald-400">⚽🏀 SPORTS MEMES</h1>
+      <div class="flex gap-2">
+        <button onclick="filterSport('all')" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium">All</button>
+        <button onclick="filterSport('soccer')" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium">Football</button>
+        <button onclick="filterSport('basketball')" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium">Basketball</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Feed Grid -->
+  <main class="max-w-6xl mx-auto p-4">
+    <div id="loading" class="text-center py-20 text-zinc-400">Loading live memes from Supabase...</div>
+    <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
+  </main>
+
+  <!-- Supabase JS Client UMD Build -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = 'https://ayfkiofamrnnsmerfcpf.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_67CCvUlVyJCJukihrXheHg_CNCiP5VM';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+    async function loadMemes(sport = 'all') {
+      const grid = document.getElementById('feed-grid');
+      const loading = document.getElementById('loading');
+      loading.style.display = 'block';
+      grid.innerHTML = '';
+
+      let query = supabase.from('posts').select('*').order('created_at', { ascending: false });
+      if (sport !== 'all') {
+        query = query.eq('sport', sport);
+      }
+
+      const { data, error } = await query;
+      loading.style.display = 'none';
+
+      if (error) {
+        console.error('Error:', error);
+        grid.innerHTML = '<p class="text-red-500 col-span-full text-center">Failed to load memes.</p>';
+        return;
+      }
+
+      if (data.length === 0) {
+        grid.innerHTML = '<p class="text-zinc-500 col-span-full text-center">No memes found yet. Run your GitHub action scraper!</p>';
+        return;
+      }
+
+      grid.innerHTML = data.map(post => `
+        <div class="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 flex flex-col">
+          <div class="h-64 bg-zinc-950 flex items-center justify-center overflow-hidden">
+            <img src="${post.media_url}" alt="${post.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Media+Not+Found'">
+          </div>
+          <div class="p-4 flex flex-col flex-grow justify-between">
+            <h3 class="text-sm font-medium text-zinc-200 mb-2 line-clamp-2">${post.title}</h3>
+            <div class="flex justify-between items-center mt-auto pt-2 border-t border-zinc-800/60">
+              <span class="text-xs uppercase px-2 py-0.5 rounded font-bold ${post.sport === 'soccer' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}">${post.sport}</span>
+              <span class="text-xs text-zinc-500">${new Date(post.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    window.filterSport = (sport) => loadMemes(sport);
+
+    // Initial load
+    loadMemes();
+  </script>
+</body>
+</html>
