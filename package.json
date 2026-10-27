@@ -1,0 +1,9 @@
+{
+  "name": "sports-meme-collector",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.4.0"
+  }
+}
