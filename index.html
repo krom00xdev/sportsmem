@@ -65,7 +65,7 @@
       }
 
       if (!data || data.length === 0) {
-        grid.innerHTML = '<p class="text-zinc-500 col-span-full text-center py-20">No memes found in database yet. Run your GitHub Action fetcher!</p>';
+        grid.innerHTML = '<p class="text-zinc-500 col-span-full text-center py-20">No memes found in database yet.</p>';
         return;
       }
 
@@ -74,12 +74,12 @@
         
         let mediaHtml = '';
         if (isVideo) {
-          mediaHtml = `<video src="${post.media_url}" class="w-full h-full object-cover pointer-events-none" autoplay loop muted playsinline></video>`;
+          // Added playsinline, muted, autoplay, and preload attributes for reliable cross-browser rendering
+          mediaHtml = `<video src="${post.media_url}" class="w-full h-full object-cover pointer-events-none" autoplay loop muted playsinline preload="auto"></video>`;
         } else {
           mediaHtml = `<img src="${post.media_url}" alt="${post.title || 'Meme'}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Media+Unavailable'">`;
         }
 
-        // Escape string data safely for modal click
         const safeTitle = (post.title || 'Sports Meme').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const safeUrl = post.media_url;
 
@@ -87,7 +87,7 @@
           <div onclick="openModal('${safeUrl}', '${safeTitle}', '${post.type}')" class="group bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 flex flex-col cursor-pointer shadow-lg hover:border-zinc-700 transition">
             <div class="h-64 bg-zinc-950 flex items-center justify-center overflow-hidden relative">
               ${mediaHtml}
-              <span class="absolute bottom-2 left-2 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur">
+              <span class="absolute bottom-2 left-2 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-black/70 text-white backdrop-blur">
                 ${post.type || 'image'}
               </span>
             </div>
@@ -111,7 +111,8 @@
       const titleEl = document.getElementById('modal-title');
 
       if (type === 'video' || url.endsWith('.mp4')) {
-        content.innerHTML = `<video src="${url}" class="max-h-[75vh] w-auto rounded" controls autoplay></video>`;
+        // Modal video gets playback controls enabled
+        content.innerHTML = `<video src="${url}" class="max-h-[75vh] w-auto rounded" controls autoplay playsinline></video>`;
       } else {
         content.innerHTML = `<img src="${url}" alt="${title}" class="max-h-[75vh] w-auto object-contain rounded">`;
       }
@@ -124,10 +125,9 @@
       const modal = document.getElementById('media-modal');
       const content = document.getElementById('modal-content');
       modal.style.display = 'none';
-      content.innerHTML = ''; // Stops video playback when closed
+      content.innerHTML = ''; 
     }
 
-    // Close modal on background click
     window.onclick = function(event) {
       const modal = document.getElementById('media-modal');
       if (event.target === modal) {
@@ -135,7 +135,6 @@
       }
     }
 
-    // Initial load
     loadMemes();
   </script>
 </body>
