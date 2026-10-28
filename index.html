@@ -3,29 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sports Memes Hub</title>
+  <title>Sports Memes & Videos Hub</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-zinc-950 text-white min-h-screen">
+<body class="bg-zinc-950 text-white min-h-screen flex flex-col">
   
   <!-- Header -->
-  <header class="border-b border-zinc-800 p-4 sticky top-0 bg-zinc-950/80 backdrop-blur z-10">
-    <div class="max-w-6xl mx-auto flex justify-between items-center">
-      <h1 class="text-xl font-bold tracking-wider text-emerald-400">⚽🏀 SPORTS MEMES</h1>
-      <div class="flex gap-2">
-        <button onclick="filterSport('all')" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">All</button>
-        <button onclick="filterSport('soccer')" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">Football</button>
-        <button onclick="filterSport('basketball')" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">Basketball</button>
+  <header class="border-b border-zinc-800 p-4 sticky top-0 bg-zinc-950/90 backdrop-blur z-20">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+      <h1 class="text-xl font-extrabold tracking-wider text-emerald-400 flex items-center gap-2">⚽🏀 ULTIMATE SPORTS MEMES</h1>
+      <div class="flex flex-wrap gap-2">
+        <button onclick="filterSport('all')" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">All</button>
+        <button onclick="filterSport('soccer')" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">Football</button>
+        <button onclick="filterSport('basketball')" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">Basketball</button>
       </div>
     </div>
   </header>
 
   <!-- Feed Grid Container -->
-  <main class="max-w-6xl mx-auto p-4">
-    <div id="loading" class="text-center py-20 text-zinc-400">Loading live memes from Supabase...</div>
+  <main class="max-w-6xl mx-auto p-4 flex-grow w-full">
+    <div id="loading" class="text-center py-20 text-zinc-400 animate-pulse">Loading live memes, GIFs, and videos from Supabase...</div>
     <div id="feed-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"></div>
   </main>
+
+  <!-- Fullscreen Preview Modal -->
+  <div id="media-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex-col items-center justify-center p-4">
+    <button onclick="closeModal()" class="absolute top-6 right-6 text-zinc-400 hover:text-white text-3xl font-bold bg-zinc-900/80 px-3 py-1 rounded-full">&times;</button>
+    <div class="max-w-4xl max-h-[80vh] w-full flex items-center justify-center overflow-hidden rounded-xl bg-zinc-900 border border-zinc-800">
+      <div id="modal-content" class="w-full flex items-center justify-center p-2"></div>
+    </div>
+    <p id="modal-title" class="text-zinc-200 mt-4 text-center font-medium max-w-xl text-lg"></p>
+  </div>
 
   <!-- Supabase JS Client UMD Build -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -33,7 +42,6 @@
     const SUPABASE_URL = 'https://ayfkiofamrnnsmerfcpf.supabase.co';
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_67CCvUlVyJCJukihrXheHg_CNCiP5VM';
     
-    // Initialize Supabase Client safely preventing duplicate declarations
     window.sbClient = window.sbClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
     async function loadMemes(sport = 'all') {
@@ -52,34 +60,82 @@
 
       if (error) {
         console.error('Supabase Query Error:', error);
-        grid.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load memes: ${error.message}</p>`;
+        grid.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load media: ${error.message}</p>`;
         return;
       }
 
       if (!data || data.length === 0) {
-        grid.innerHTML = '<p class="text-zinc-500 col-span-full text-center">No memes found in database.</p>';
+        grid.innerHTML = '<p class="text-zinc-500 col-span-full text-center py-20">No memes found in database yet. Run your GitHub Action fetcher!</p>';
         return;
       }
 
-      grid.innerHTML = data.map(post => `
-        <div class="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 flex flex-col shadow-lg">
-          <div class="h-64 bg-zinc-950 flex items-center justify-center overflow-hidden">
-            <img src="${post.media_url}" alt="${post.title || 'Meme'}" class="w-full h-full object-cover" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Image+Unavailable'">
-          </div>
-          <div class="p-4 flex flex-col flex-grow justify-between">
-            <h3 class="text-sm font-medium text-zinc-200 mb-2 line-clamp-2">${post.title || 'Untitled'}</h3>
-            <div class="flex justify-between items-center mt-auto pt-2 border-t border-zinc-800/60">
-              <span class="text-xs uppercase px-2 py-0.5 rounded font-bold ${post.sport === 'soccer' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}">${post.sport || 'sport'}</span>
-              <span class="text-xs text-zinc-500">${post.upvotes ? '▲ ' + post.upvotes : ''}</span>
+      grid.innerHTML = data.map(post => {
+        const isVideo = post.type === 'video' || post.media_url.endsWith('.mp4') || post.media_url.includes('v.redd.it');
+        
+        let mediaHtml = '';
+        if (isVideo) {
+          mediaHtml = `<video src="${post.media_url}" class="w-full h-full object-cover pointer-events-none" autoplay loop muted playsinline></video>`;
+        } else {
+          mediaHtml = `<img src="${post.media_url}" alt="${post.title || 'Meme'}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Media+Unavailable'">`;
+        }
+
+        // Escape string data safely for modal click
+        const safeTitle = (post.title || 'Sports Meme').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const safeUrl = post.media_url;
+
+        return `
+          <div onclick="openModal('${safeUrl}', '${safeTitle}', '${post.type}')" class="group bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 flex flex-col cursor-pointer shadow-lg hover:border-zinc-700 transition">
+            <div class="h-64 bg-zinc-950 flex items-center justify-center overflow-hidden relative">
+              ${mediaHtml}
+              <span class="absolute bottom-2 left-2 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur">
+                ${post.type || 'image'}
+              </span>
+            </div>
+            <div class="p-4 flex flex-col flex-grow justify-between">
+              <h3 class="text-sm font-medium text-zinc-200 mb-2 line-clamp-2">${post.title || 'Untitled'}</h3>
+              <div class="flex justify-between items-center mt-auto pt-2 border-t border-zinc-800/60">
+                <span class="text-xs uppercase px-2 py-0.5 rounded font-bold ${post.sport === 'soccer' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}">${post.sport || 'sport'}</span>
+                <span class="text-xs text-zinc-500 font-semibold">${post.source ? 'via ' + post.source : ''}</span>
+              </div>
             </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     window.filterSport = (sport) => loadMemes(sport);
 
-    // Initial load on page mount
+    function openModal(url, title, type) {
+      const modal = document.getElementById('media-modal');
+      const content = document.getElementById('modal-content');
+      const titleEl = document.getElementById('modal-title');
+
+      if (type === 'video' || url.endsWith('.mp4')) {
+        content.innerHTML = `<video src="${url}" class="max-h-[75vh] w-auto rounded" controls autoplay></video>`;
+      } else {
+        content.innerHTML = `<img src="${url}" alt="${title}" class="max-h-[75vh] w-auto object-contain rounded">`;
+      }
+      
+      titleEl.innerText = title;
+      modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('media-modal');
+      const content = document.getElementById('modal-content');
+      modal.style.display = 'none';
+      content.innerHTML = ''; // Stops video playback when closed
+    }
+
+    // Close modal on background click
+    window.onclick = function(event) {
+      const modal = document.getElementById('media-modal');
+      if (event.target === modal) {
+        closeModal();
+      }
+    }
+
+    // Initial load
     loadMemes();
   </script>
 </body>
