@@ -3,20 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sports Memes & Videos Hub</title>
-  <!-- Tailwind CSS CDN -->
+  <title>Ultimate Sports Memes Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen flex flex-col">
   
-  <!-- Header -->
-  <header class="border-b border-zinc-800 p-4 sticky top-0 bg-zinc-950/90 backdrop-blur z-20">
+  <!-- Header & Sport Filters -->
+  <header class="border-b border-zinc-800 p-4 sticky top-0 bg-zinc-950/95 backdrop-blur z-20 shadow-md">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-      <h1 class="text-xl font-extrabold tracking-wider text-emerald-400 flex items-center gap-2">⚽🏀 ULTIMATE SPORTS MEMES</h1>
-      <div class="flex flex-wrap gap-2">
-        <button onclick="filterSport('all')" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">All</button>
-        <button onclick="filterSport('soccer')" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">Football</button>
-        <button onclick="filterSport('basketball')" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm font-medium transition">Basketball</button>
+      <h1 class="text-xl font-extrabold tracking-wider text-emerald-400 flex items-center gap-2">⚽🏀 SPORTS MEMES</h1>
+      
+      <!-- Sport Filter Buttons -->
+      <div class="flex gap-2">
+        <button onclick="filterSport('all')" id="btn-all" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-semibold transition shadow">All</button>
+        <button onclick="filterSport('soccer')" id="btn-soccer" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-semibold transition">Football ⚽</button>
+        <button onclick="filterSport('basketball')" id="btn-basketball" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-semibold transition">Basketball 🏀</button>
       </div>
     </div>
   </header>
@@ -29,22 +30,29 @@
 
   <!-- Fullscreen Preview Modal -->
   <div id="media-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex-col items-center justify-center p-4">
-    <button onclick="closeModal()" class="absolute top-6 right-6 text-zinc-400 hover:text-white text-3xl font-bold bg-zinc-900/80 px-3 py-1 rounded-full">&times;</button>
+    <button onclick="closeModal()" class="absolute top-6 right-6 text-zinc-400 hover:text-white text-3xl font-bold bg-zinc-900/80 px-3 py-1.5 rounded-full">&times;</button>
     <div class="max-w-4xl max-h-[80vh] w-full flex items-center justify-center overflow-hidden rounded-xl bg-zinc-900 border border-zinc-800">
       <div id="modal-content" class="w-full flex items-center justify-center p-2"></div>
     </div>
     <p id="modal-title" class="text-zinc-200 mt-4 text-center font-medium max-w-xl text-lg"></p>
   </div>
 
-  <!-- Supabase JS Client UMD Build -->
+  <!-- Toast Notification for Copy Link -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg hidden z-50 text-sm font-medium transition">Link copied to clipboard!</div>
+
+  <!-- Supabase Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const SUPABASE_URL = 'https://ayfkiofamrnnsmerfcpf.supabase.co';
     const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_67CCvUlVyJCJukihrXheHg_CNCiP5VM';
     
     window.sbClient = window.sbClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    let currentSport = 'all';
 
     async function loadMemes(sport = 'all') {
+      currentSport = sport;
+      highlightActiveButton(sport);
+
       const grid = document.getElementById('feed-grid');
       const loading = document.getElementById('loading');
       loading.style.display = 'block';
@@ -59,43 +67,74 @@
       loading.style.display = 'none';
 
       if (error) {
-        console.error('Supabase Query Error:', error);
         grid.innerHTML = `<p class="text-red-500 col-span-full text-center">Failed to load media: ${error.message}</p>`;
         return;
       }
 
       if (!data || data.length === 0) {
-        grid.innerHTML = '<p class="text-zinc-500 col-span-full text-center py-20">No memes found in database yet.</p>';
+        grid.innerHTML = `<p class="text-zinc-500 col-span-full text-center py-20">No items found for ${sport === 'all' ? 'this category' : sport}.</p>`;
         return;
       }
 
       grid.innerHTML = data.map(post => {
-        const isVideo = post.type === 'video' || post.media_url.endsWith('.mp4') || post.media_url.includes('v.redd.it');
-        
+        const isVideo = post.type === 'video' || post.media_url.endsWith('.mp4');
         let mediaHtml = '';
+        
         if (isVideo) {
-          // Added playsinline, muted, autoplay, and preload attributes for reliable cross-browser rendering
-          mediaHtml = `<video src="${post.media_url}" class="w-full h-full object-cover pointer-events-none" autoplay loop muted playsinline preload="auto"></video>`;
+          mediaHtml = `<video src="${post.media_url}" class="w-full h-full object-cover pointer-events-none" muted playsinline preload="metadata"></video>`;
         } else {
-          mediaHtml = `<img src="${post.media_url}" alt="${post.title || 'Meme'}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" onerror="this.src='https://via.placeholder.com/400x300?text=Media+Unavailable'">`;
+          mediaHtml = `<img src="${post.media_url}" alt="${post.title || 'Meme'}" class="w-full h-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=400&q=80'">`;
         }
 
         const safeTitle = (post.title || 'Sports Meme').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const safeUrl = post.media_url;
+        const shareText = encodeURIComponent(`Check out this sports meme: ${post.title || ''} ${safeUrl}`);
 
         return `
-          <div onclick="openModal('${safeUrl}', '${safeTitle}', '${post.type}')" class="group bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 flex flex-col cursor-pointer shadow-lg hover:border-zinc-700 transition">
-            <div class="h-64 bg-zinc-950 flex items-center justify-center overflow-hidden relative">
+          <div class="group bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 flex flex-col shadow-lg hover:border-zinc-700 transition">
+            <!-- Media Preview Area -->
+            <div onclick="openModal('${safeUrl}', '${safeTitle}', '${post.type}')" class="h-64 bg-zinc-950 flex items-center justify-center overflow-hidden relative cursor-pointer">
               ${mediaHtml}
               <span class="absolute bottom-2 left-2 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-black/70 text-white backdrop-blur">
                 ${post.type || 'image'}
               </span>
             </div>
+
+            <!-- Content & Info -->
             <div class="p-4 flex flex-col flex-grow justify-between">
-              <h3 class="text-sm font-medium text-zinc-200 mb-2 line-clamp-2">${post.title || 'Untitled'}</h3>
-              <div class="flex justify-between items-center mt-auto pt-2 border-t border-zinc-800/60">
-                <span class="text-xs uppercase px-2 py-0.5 rounded font-bold ${post.sport === 'soccer' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}">${post.sport || 'sport'}</span>
-                <span class="text-xs text-zinc-500 font-semibold">${post.source ? 'via ' + post.source : ''}</span>
+              <h3 onclick="openModal('${safeUrl}', '${safeTitle}', '${post.type}')" class="text-sm font-medium text-zinc-200 mb-3 line-clamp-2 cursor-pointer hover:text-emerald-400 transition">${post.title || 'Untitled'}</h3>
+              
+              <div class="flex flex-col gap-3 mt-auto pt-3 border-t border-zinc-800/80">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs uppercase px-2 py-0.5 rounded font-bold ${post.sport === 'soccer' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-orange-500/10 text-orange-400'}">${post.sport || 'sport'}</span>
+                  <span class="text-xs text-zinc-500 font-semibold">${post.source ? 'via ' + post.source : ''}</span>
+                </div>
+
+                <!-- Forward to Friend / Share Toolbar -->
+                <div class="flex items-center justify-between pt-2 border-t border-zinc-800/40 text-xs">
+                  <span class="text-zinc-400 font-medium">Forward to:</span>
+                  <div class="flex items-center gap-2">
+                    <!-- WhatsApp -->
+                    <a href="https://api.whatsapp.com/send?text=${shareText}" target="_blank" title="Share on WhatsApp" class="p-1.5 bg-zinc-800 hover:bg-emerald-600 rounded-full transition text-emerald-400 hover:text-white">
+                      <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></path></svg>
+                    </a>
+
+                    <!-- Viber -->
+                    <a href="viber://forward?text=${shareText}" title="Share on Viber" class="p-1.5 bg-zinc-800 hover:bg-purple-600 rounded-full transition text-purple-400 hover:text-white">
+                      <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12c0 2.11.65 4.07 1.76 5.69L2.35 21.65l4.08-1.35c1.58.98 3.49 1.55 5.56 1.55 5.52 0 9.99-4.48 9.99-10S17.51 2 11.99 2zm5.72 13.52c-.22.61-1.27 1.15-1.76 1.22-.45.06-1.02.11-3.29-.79-2.81-1.12-4.63-4.01-4.77-4.2-.14-.19-1.13-1.5-1.13-2.86 0-1.36.71-2.03.96-2.31.25-.28.55-.35.73-.35.18 0 .36.01.52.02.17.01.4-.06.63.48.23.55.79 1.93.86 2.07.07.14.12.31.02.5-.1.19-.15.31-.29.48-.14.17-.3.38-.43.51-.14.14-.3.29-.13.57.17.28.77 1.27 1.65 2.06 1.13 1.01 2.09 1.32 2.39 1.47.3.15.47.13.65-.08.18-.21.77-.9 1-1.21.23-.31.45-.26.75-.15.3.11 1.9.9 2.23 1.06.33.16.55.24.63.37.08.13.08.75-.14 1.36z"/></path></svg>
+                    </a>
+
+                    <!-- Twitter / X -->
+                    <a href="https://twitter.com/intent/tweet?text=${shareText}" target="_blank" title="Share on X" class="p-1.5 bg-zinc-800 hover:bg-sky-600 rounded-full transition text-sky-400 hover:text-white">
+                      <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></path></svg>
+                    </a>
+
+                    <!-- Copy Link Button -->
+                    <button onclick="copyToClipboard('${safeUrl}')" title="Copy Link" class="p-1.5 bg-zinc-800 hover:bg-emerald-600 rounded-full transition text-zinc-300 hover:text-white">
+                      <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0-2-.9-2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></path></svg>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -103,7 +142,26 @@
       }).join('');
     }
 
+    function highlightActiveButton(sport) {
+      ['all', 'soccer', 'basketball'].forEach(s => {
+        const btn = document.getElementById(`btn-${s}`);
+        if (s === sport) {
+          btn.className = "px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-semibold transition shadow";
+        } else {
+          btn.className = "px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm font-semibold transition";
+        }
+      });
+    }
+
     window.filterSport = (sport) => loadMemes(sport);
+
+    function copyToClipboard(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('toast');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+      });
+    }
 
     function openModal(url, title, type) {
       const modal = document.getElementById('media-modal');
@@ -111,7 +169,6 @@
       const titleEl = document.getElementById('modal-title');
 
       if (type === 'video' || url.endsWith('.mp4')) {
-        // Modal video gets playback controls enabled
         content.innerHTML = `<video src="${url}" class="max-h-[75vh] w-auto rounded" controls autoplay playsinline></video>`;
       } else {
         content.innerHTML = `<img src="${url}" alt="${title}" class="max-h-[75vh] w-auto object-contain rounded">`;
